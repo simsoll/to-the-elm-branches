@@ -1,6 +1,7 @@
 module Game exposing (..)
 
-import Html exposing (Html, text, div)
+import Html exposing (Html, text, div, Attribute)
+import Html.Attributes exposing (style)
 import Html.App as Html
 import Keyboard exposing (KeyCode)
 import Random
@@ -143,7 +144,28 @@ incrementShotsFired model =
 view : Model -> Html msg
 view model =
     div []
-        [ text (toString model) ]
+        [ canvas model
+        , text (toString model)
+        ]
+
+
+
+-- [  ]
+
+
+canvasStyle : Model -> Attribute msg
+canvasStyle model =
+    style
+        [ ( "backgroundColor", "cornflowerblue" )
+        , ( "height", toString model.viewHeight ++ "px" )
+        , ( "width", toString model.viewWidth ++ "px" )
+        , ( "margin", "auto" )
+        ]
+
+
+canvas : Model -> Html msg
+canvas model =
+    div [ canvasStyle model ] []
 
 
 
