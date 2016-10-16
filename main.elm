@@ -28,23 +28,47 @@ type alias Model =
     { viewWidth : Int
     , viewHeight : Int
     , pixelSize : Int
-    , velocity : Float
-    , position : Float
-    , shotsFired : Int
+    , player : Player
+    , numberOfPixels : Int
     , randomNumber : Int
     , framesPerSecond : Int
     , timeElapsedInSeconds : Float
     }
 
 
+type alias Player =
+    { velocity : Float
+    , position : Float
+    , shotsFired : Int
+    }
+
+
+pixelSize : number
+pixelSize =
+    8
+
+
+viewWidth : number
+viewWidth =
+    1024
+
+
+viewHeight : number
+viewHeight =
+    768
+
+
 model : Model
 model =
-    { viewWidth = 800
-    , viewHeight = 600
-    , pixelSize = 5
-    , velocity = 0
-    , position = 0
-    , shotsFired = 0
+    { viewWidth = viewWidth
+    , viewHeight = viewHeight
+    , pixelSize = pixelSize
+    , numberOfPixels = round (viewWidth / pixelSize * viewHeight / pixelSize)
+    , player =
+        { velocity = 0
+        , position = 0
+        , shotsFired = 0
+        }
     , randomNumber = 0
     , framesPerSecond = 0
     , timeElapsedInSeconds = 0
@@ -73,49 +97,49 @@ update msg model =
             ( model |> applyPhysics time, Cmd.none )
 
         KeyDown keyCode ->
-            ( keyDown keyCode model, Cmd.none )
+            ( { model | player = keyDown keyCode model.player }, Cmd.none )
 
         KeyUp keyCode ->
-            ( keyUp keyCode model, Cmd.none )
+            ( { model | player = keyUp keyCode model.player }, Cmd.none )
 
 
-keyDown : KeyCode -> Model -> Model
-keyDown keyCode model =
+keyDown : KeyCode -> Player -> Player
+keyDown keyCode player =
     case Key.fromCode keyCode of
         Space ->
-            incrementShotsFired model
+            incrementShotsFired player
 
         ArrowLeft ->
-            updateVelocity -1.0 model
+            updateVelocity -1.0 player
 
         ArrowRight ->
-            updateVelocity 1.0 model
+            updateVelocity 1.0 player
 
         _ ->
-            model
+            player
 
 
-keyUp : KeyCode -> Model -> Model
-keyUp keyCode model =
+keyUp : KeyCode -> Player -> Player
+keyUp keyCode player =
     case Key.fromCode keyCode of
         ArrowLeft ->
-            updateVelocity 0 model
+            updateVelocity 0 player
 
         ArrowRight ->
-            updateVelocity 0 model
+            updateVelocity 0 player
 
         _ ->
-            model
+            player
 
 
 applyPhysics : Time -> Model -> Model
 applyPhysics deltaTime model =
     { model
-        | position = model.position + model.velocity * Time.inMilliseconds deltaTime
+        | player = applyTime deltaTime model.player
         , framesPerSecond = round (60 / Time.inSeconds deltaTime)
         , timeElapsedInSeconds = model.timeElapsedInSeconds + Time.inSeconds deltaTime
         , randomNumber =
-            case round model.timeElapsedInSeconds % 2 of
+            case round model.timeElapsedInSeconds % 1 of
                 0 ->
                     round model.timeElapsedInSeconds
                         |> Random.initialSeed
@@ -127,14 +151,21 @@ applyPhysics deltaTime model =
     }
 
 
-updateVelocity : Time -> Model -> Model
-updateVelocity newVelocity model =
-    { model | velocity = newVelocity }
+applyTime : Time -> Player -> Player
+applyTime deltaTime player =
+    { player
+        | position = player.position + player.velocity * Time.inMilliseconds deltaTime
+    }
 
 
-incrementShotsFired : Model -> Model
-incrementShotsFired model =
-    { model | shotsFired = model.shotsFired + 1 }
+updateVelocity : Time -> Player -> Player
+updateVelocity newVelocity player =
+    { player | velocity = newVelocity }
+
+
+incrementShotsFired : Player -> Player
+incrementShotsFired player =
+    { player | shotsFired = player.shotsFired + 1 }
 
 
 
@@ -144,13 +175,18 @@ incrementShotsFired model =
 view : Model -> Html msg
 view model =
     div []
-        [ canvas model
-        , text (toString model)
-        ]
+        [ canvas model, text (toString model) ]
 
 
-
--- [  ]
+canvas : Model -> Html msg
+canvas model =
+    let
+        blocks =
+            [1..model.numberOfPixels]
+                |> List.map (\n -> model)
+                |> List.map block
+    in
+        div [ canvasStyle model ] blocks
 
 
 canvasStyle : Model -> Attribute msg
@@ -163,9 +199,19 @@ canvasStyle model =
         ]
 
 
-canvas : Model -> Html msg
-canvas model =
-    div [ canvasStyle model ] []
+block : Model -> Html msg
+block model =
+    div [ blockStyle model ] []
+
+
+blockStyle : Model -> Attribute msg
+blockStyle model =
+    style
+        [ ( "backgroundColor", "yellow" )
+        , ( "float", "left" )
+        , ( "height", toString model.pixelSize ++ "px" )
+        , ( "width", toString model.pixelSize ++ "px" )
+        ]
 
 
 
