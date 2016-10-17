@@ -29,6 +29,7 @@ type alias Model =
     , viewHeight : Int
     , pixelSize : Int
     , player : Player
+    , actions : List Action
     , numberOfPixels : Int
     , randomNumber : Int
     , framesPerSecond : Int
@@ -69,6 +70,7 @@ model =
         , position = 0
         , shotsFired = 0
         }
+    , actions = []
     , randomNumber = 0
     , framesPerSecond = 0
     , timeElapsedInSeconds = 0
@@ -90,17 +92,67 @@ type Msg
     | KeyUp KeyCode
 
 
+type alias Velocity =
+    Float
+
+
+type Action
+    = Shot
+    | MoveLeft Velocity
+    | MoveRight Velocity
+
+
+toAction : Int -> Model -> Maybe Action
+toAction keyCode model =
+    case Key.fromCode keyCode of
+        Space ->
+            Just Shot
+
+        ArrowLeft ->
+            Just (MoveLeft model.player.velocity)
+
+        ArrowRight ->
+            Just (MoveRight model.player.velocity)
+
+        _ ->
+            Nothing
+
+
 update : Msg -> Model -> ( Model, Cmd Msg )
 update msg model =
     case msg of
+        -- TODO: fix this! apply actions in applyPhysics
         TimeUpdate time ->
             ( model |> applyPhysics time, Cmd.none )
 
         KeyDown keyCode ->
-            ( { model | player = keyDown keyCode model.player }, Cmd.none )
+            let
+                action =
+                    toAction keyCode model
+            in
+                case action of
+                    Just action ->
+                        case List.member action model.actions of
+                            True ->
+                                ( model, Cmd.none )
+
+                            False ->
+                                ( { model | actions = action :: model.actions }, Cmd.none )
+
+                    Nothing ->
+                        ( model, Cmd.none )
 
         KeyUp keyCode ->
-            ( { model | player = keyUp keyCode model.player }, Cmd.none )
+            let
+                action =
+                    toAction keyCode model
+            in
+                -- TODO: fix this! only remove the action from the actions list
+                ( { model | actions = [] }, Cmd.none )
+
+
+
+-- TODO: fix this! can be deleted?
 
 
 keyDown : KeyCode -> Player -> Player
@@ -117,6 +169,10 @@ keyDown keyCode player =
 
         _ ->
             player
+
+
+
+-- TODO: fix this! can be deleted?
 
 
 keyUp : KeyCode -> Player -> Player
