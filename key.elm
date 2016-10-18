@@ -5,20 +5,19 @@ type Key
     = Space
     | ArrowLeft
     | ArrowRight
-    | Unknown
 
 
-fromCode : Int -> Key
+fromCode : Int -> Maybe Key
 fromCode keyCode =
     case keyCode of
         32 ->
-            Space
+            Just Space
 
         37 ->
-            ArrowLeft
+            Just ArrowLeft
 
         39 ->
-            ArrowRight
+            Just ArrowRight
 
         _ ->
-            Unknown
+            Nothing

@@ -37,9 +37,13 @@ type alias Model =
     }
 
 
+type alias Position =
+    ( Float, Float )
+
+
 type alias Player =
     { velocity : Float
-    , position : Float
+    , position : Position
     , shotsFired : Int
     }
 
@@ -66,8 +70,8 @@ model =
     , pixelSize = pixelSize
     , numberOfPixels = round (viewWidth / pixelSize * viewHeight / pixelSize)
     , player =
-        { velocity = 0
-        , position = 0
+        { velocity = 1
+        , position = ( 0, 0 )
         , shotsFired = 0
         }
     , actions = []
@@ -102,19 +106,21 @@ type Action
     | MoveRight Velocity
 
 
-toAction : Int -> Model -> Maybe Action
-toAction keyCode model =
+toAction : Model -> Int -> Maybe Action
+toAction model keyCode =
     case Key.fromCode keyCode of
-        Space ->
-            Just Shot
+        Just key ->
+            case key of
+                Space ->
+                    Just Shot
 
-        ArrowLeft ->
-            Just (MoveLeft model.player.velocity)
+                ArrowLeft ->
+                    Just (MoveLeft model.player.velocity)
 
-        ArrowRight ->
-            Just (MoveRight model.player.velocity)
+                ArrowRight ->
+                    Just (MoveRight model.player.velocity)
 
-        _ ->
+        Nothing ->
             Nothing
 
 
@@ -123,12 +129,12 @@ update msg model =
     case msg of
         -- TODO: fix this! apply actions in applyPhysics
         TimeUpdate time ->
-            ( model |> applyPhysics time, Cmd.none )
+            ( model |> applyTime time, Cmd.none )
 
         KeyDown keyCode ->
             let
                 action =
-                    toAction keyCode model
+                    keyCode |> toAction model
             in
                 case action of
                     Just action ->
@@ -145,53 +151,29 @@ update msg model =
         KeyUp keyCode ->
             let
                 action =
-                    toAction keyCode model
+                    keyCode |> toAction model
             in
-                -- TODO: fix this! only remove the action from the actions list
-                ( { model | actions = [] }, Cmd.none )
+                case action of
+                    Just action ->
+                        let
+                            isReleased =
+                                isActionsDifferent action
+                        in
+                            ( { model | actions = model.actions |> List.filter isReleased }, Cmd.none )
+
+                    Nothing ->
+                        ( model, Cmd.none )
 
 
-
--- TODO: fix this! can be deleted?
-
-
-keyDown : KeyCode -> Player -> Player
-keyDown keyCode player =
-    case Key.fromCode keyCode of
-        Space ->
-            incrementShotsFired player
-
-        ArrowLeft ->
-            updateVelocity -1.0 player
-
-        ArrowRight ->
-            updateVelocity 1.0 player
-
-        _ ->
-            player
+isActionsDifferent : Action -> Action -> Bool
+isActionsDifferent firstAction secondAction =
+    firstAction /= secondAction
 
 
-
--- TODO: fix this! can be deleted?
-
-
-keyUp : KeyCode -> Player -> Player
-keyUp keyCode player =
-    case Key.fromCode keyCode of
-        ArrowLeft ->
-            updateVelocity 0 player
-
-        ArrowRight ->
-            updateVelocity 0 player
-
-        _ ->
-            player
-
-
-applyPhysics : Time -> Model -> Model
-applyPhysics deltaTime model =
+applyTime : Time -> Model -> Model
+applyTime deltaTime model =
     { model
-        | player = applyTime deltaTime model.player
+        | player = List.foldl (applyAction deltaTime) model.player model.actions
         , framesPerSecond = round (60 / Time.inSeconds deltaTime)
         , timeElapsedInSeconds = model.timeElapsedInSeconds + Time.inSeconds deltaTime
         , randomNumber =
@@ -207,21 +189,17 @@ applyPhysics deltaTime model =
     }
 
 
-applyTime : Time -> Player -> Player
-applyTime deltaTime player =
-    { player
-        | position = player.position + player.velocity * Time.inMilliseconds deltaTime
-    }
+applyAction : Time -> Action -> Player -> Player
+applyAction deltaTime action player =
+    case action of
+        Shot ->
+            { player | shotsFired = player.shotsFired + 1 }
 
+        MoveLeft velocity ->
+            { player | position = ( fst player.position + player.velocity * Time.inMilliseconds deltaTime, snd player.position ) }
 
-updateVelocity : Time -> Player -> Player
-updateVelocity newVelocity player =
-    { player | velocity = newVelocity }
-
-
-incrementShotsFired : Player -> Player
-incrementShotsFired player =
-    { player | shotsFired = player.shotsFired + 1 }
+        MoveRight velocity ->
+            { player | position = ( fst player.position - player.velocity * Time.inMilliseconds deltaTime, snd player.position ) }
 
 
 
