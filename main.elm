@@ -8,6 +8,8 @@ import Random
 import AnimationFrame
 import Time exposing (Time)
 import Key exposing (..)
+import Color exposing (..)
+import Dict exposing (..)
 
 
 main : Program Never
@@ -38,13 +40,24 @@ type alias Model =
 
 
 type alias Position =
-    ( Float, Float )
+    ( Int, Int )
+
+
+type alias Pixel =
+    { position : Position
+    , color : Color
+    }
+
+
+type alias PixelMap =
+    List Pixel
 
 
 type alias Player =
     { velocity : Float
     , position : Position
     , shotsFired : Int
+    , pixelMap : PixelMap
     }
 
 
@@ -73,6 +86,20 @@ model =
         { velocity = 1
         , position = ( 0, 0 )
         , shotsFired = 0
+        , pixelMap =
+            [ { position = ( 0, 0 )
+              , color = rgb 150 150 150
+              }
+            , { position = ( 1, 0 )
+              , color = rgb 150 150 150
+              }
+            , { position = ( 0, 1 )
+              , color = rgb 150 150 150
+              }
+            , { position = ( 1, 1 )
+              , color = rgb 150 150 150
+              }
+            ]
         }
     , actions = []
     , randomNumber = 0
@@ -196,10 +223,10 @@ applyAction deltaTime action player =
             { player | shotsFired = player.shotsFired + 1 }
 
         MoveLeft velocity ->
-            { player | position = ( fst player.position + player.velocity * Time.inMilliseconds deltaTime, snd player.position ) }
+            { player | position = ( fst player.position - round (player.velocity * Time.inMilliseconds deltaTime), snd player.position ) }
 
         MoveRight velocity ->
-            { player | position = ( fst player.position - player.velocity * Time.inMilliseconds deltaTime, snd player.position ) }
+            { player | position = ( fst player.position + round (player.velocity * Time.inMilliseconds deltaTime), snd player.position ) }
 
 
 
@@ -208,43 +235,82 @@ applyAction deltaTime action player =
 
 view : Model -> Html msg
 view model =
-    div []
-        [ canvas model, text (toString model) ]
+    div [] [ canvas model, text (toString model) ]
+
+
+type alias Canvas =
+    Dict Position Color
+
+
+background : Canvas
+background =
+    let
+        xs =
+            [0..round (viewWidth / pixelSize) - 1]
+
+        ys =
+            [0..round (viewHeight / pixelSize) - 1]
+    in
+        ys
+            |> List.map (singleTupleZip xs)
+            |> List.concat
+            |> singleTupleZipReserve (rgb 150 150 150)
+            |> Dict.fromList
+
+
+singleTupleZip : List a -> b -> List ( a, b )
+singleTupleZip a b =
+    a |> List.map (\x -> ( x, b ))
+
+
+singleTupleZipReserve : a -> List b -> List ( b, a )
+singleTupleZipReserve a b =
+    b |> List.map (\x -> ( x, a ))
 
 
 canvas : Model -> Html msg
 canvas model =
     let
         blocks =
-            [1..model.numberOfPixels]
-                |> List.map (\n -> model)
-                |> List.map block
+            background
+                |> Dict.toList
+                |> List.map (canvasPixel model)
     in
         div [ canvasStyle model ] blocks
+
+
+canvasPixel : Model -> ( Position, Color ) -> Html msg
+canvasPixel model ( position, color ) =
+    div [ canvasPixelStyle model position color ] []
+
+
+canvasPixelStyle : Model -> Position -> Color -> Attribute msg
+canvasPixelStyle model position color =
+    let
+        { red, green, blue } =
+            Color.toRgb color
+
+        ( xPos, yPos ) =
+            position
+    in
+        style
+            [ ( "backgroundColor", "rgb(" ++ toString red ++ "," ++ toString green ++ "," ++ toString blue ++ ")" )
+            , ( "position", "absolute" )
+            , ( "height", toString model.pixelSize ++ "px" )
+            , ( "width", toString model.pixelSize ++ "px" )
+            , ( "left", toString (model.pixelSize * xPos) ++ "px" )
+            , ( "bottom", toString (model.pixelSize * yPos) ++ "px" )
+            ]
 
 
 canvasStyle : Model -> Attribute msg
 canvasStyle model =
     style
         [ ( "backgroundColor", "cornflowerblue" )
+        , ( "position", "relative" )
         , ( "height", toString model.viewHeight ++ "px" )
         , ( "width", toString model.viewWidth ++ "px" )
         , ( "margin", "auto" )
-        ]
-
-
-block : Model -> Html msg
-block model =
-    div [ blockStyle model ] []
-
-
-blockStyle : Model -> Attribute msg
-blockStyle model =
-    style
-        [ ( "backgroundColor", "yellow" )
-        , ( "float", "left" )
-        , ( "height", toString model.pixelSize ++ "px" )
-        , ( "width", toString model.pixelSize ++ "px" )
         ]
 
 
