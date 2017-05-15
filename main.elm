@@ -84,7 +84,7 @@ model =
     , numberOfPixels = round (viewWidth / pixelSize * viewHeight / pixelSize)
     , player =
         { velocity = 0.05
-        , position = Position 0 0
+        , position = Position 0 10
         , shotsFired = 0
         , sprite =
             [ { position = Position 0 0
@@ -131,6 +131,8 @@ type Action
     = Shot
     | MoveLeft Velocity
     | MoveRight Velocity
+    | MoveDown Velocity
+    | MoveUp Velocity
 
 
 toAction : Model -> Int -> Maybe Action
@@ -144,8 +146,14 @@ toAction model keyCode =
                 ArrowLeft ->
                     Just (MoveLeft model.player.velocity)
 
+                ArrowUp ->
+                    Just (MoveUp model.player.velocity)
+
                 ArrowRight ->
                     Just (MoveRight model.player.velocity)
+
+                ArrowDown ->
+                    Just (MoveDown model.player.velocity)
 
         Nothing ->
             Nothing
@@ -233,6 +241,12 @@ applyAction deltaTime action player =
         MoveRight velocity ->
             { player | position = add (player.position) (Position (round (player.velocity * Time.inMilliseconds deltaTime)) 0) }
 
+        MoveUp velocity ->
+            { player | position = add (player.position) (Position 0 (-1 * round (player.velocity * Time.inMilliseconds deltaTime))) }
+
+        MoveDown velocity ->
+            { player | position = add (player.position) (Position 0 (round (player.velocity * Time.inMilliseconds deltaTime))) }
+
 
 toPosition : List Int -> Int -> List Position
 toPosition ys x =
@@ -252,31 +266,31 @@ listProduct xs ys =
 
 view : Model -> Html msg
 view model =
-    div []
-        [ background
-        , (drawPlayer model.player)
-          -- , text (toString model)
-          -- , div [] [ text (toString (listProduct x y)) ]
+    div
+        [ style
+            [ ( "backgroundColor", "rgb(0, 0, 0)" )
+            , ( "z-index", "1" )
+            , ( "height", "450px" )
+            , ( "width", "700px" )
+            , ( "left", "381.5px" )
+            , ( "top", "168px" )
+            ]
         ]
-
-
-background : Html msg
-background =
-    let
-        xs =
-            List.range 0 (round (viewWidth / pixelSize) - 1)
-
-        ys =
-            List.range 0 (round (viewHeight / pixelSize) - 1)
-
-        color =
-            rgb 0 0 0
-    in
-        ys
-            |> listProduct xs
-            |> List.map (Pixel color)
-            |> List.map canvasPixel
-            |> div []
+        [ div
+            [ style
+                [ ( "border-radius", "0%" )
+                , ( "box-shadow", drawPlayer model.player )
+                , ( "position", "absolute" )
+                , ( "top", "0" )
+                , ( "left", "0" )
+                , ( "margin", "0" )
+                , ( "padding", "0" )
+                , ( "overflow", "hidden" )
+                ]
+            ]
+            []
+        , div [ style [ ( "position", "fixed" ), ( "bottom", "0" ) ] ] [ text (toString model) ]
+        ]
 
 
 translatePixel : Position -> Pixel -> Pixel
@@ -289,26 +303,21 @@ translateSprite pos sprite =
     sprite |> List.map (translatePixel pos)
 
 
-drawPlayer : Player -> Html msg
+drawPlayer : Player -> String
 drawPlayer player =
     translateSprite player.position player.sprite
         |> drawSprite
 
 
-drawSprite : Sprite -> Html msg
+drawSprite : Sprite -> String
 drawSprite sprite =
     sprite
-        |> List.map canvasPixel
-        |> div []
+        |> List.map pixelStyle
+        |> String.join ","
 
 
-canvasPixel : Pixel -> Html msg
-canvasPixel pixel =
-    div [ canvasPixelStyle pixel ] []
-
-
-canvasPixelStyle : Pixel -> Attribute msg
-canvasPixelStyle pixel =
+pixelStyle : Pixel -> String
+pixelStyle pixel =
     let
         { red, green, blue } =
             Color.toRgb pixel.color
@@ -316,15 +325,7 @@ canvasPixelStyle pixel =
         { x, y } =
             pixel.position
     in
-        style
-            [ ( "backgroundColor", "rgb(" ++ toString red ++ "," ++ toString green ++ "," ++ toString blue ++ ")" )
-            , ( "position", "absolute" )
-            , ( "height", toString pixelSize ++ "px" )
-            , ( "width", toString pixelSize ++ "px" )
-            , ( "transform", "translate(" ++ toString (pixelSize * x) ++ "px," ++ toString (pixelSize * y) ++ "px)" )
-              -- , ( "left", toString (pixelSize * x) ++ "px" )
-              -- , ( "bottom", toString (pixelSize * y) ++ "px" )
-            ]
+        "rgb(" ++ toString red ++ "," ++ toString green ++ "," ++ toString blue ++ ") " ++ toString (pixelSize * x) ++ "px " ++ toString (pixelSize * y) ++ "px 0px " ++ toString (pixelSize) ++ "px"
 
 
 
