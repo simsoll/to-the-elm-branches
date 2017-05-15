@@ -30,7 +30,6 @@ type alias Model =
     , pixelSize : Int
     , player : Player
     , actions : List Action
-    , numberOfPixels : Int
     , randomNumber : Int
     , framesPerSecond : Int
     , timeElapsedInSeconds : Float
@@ -63,7 +62,7 @@ type alias Player =
 
 pixelSize : number
 pixelSize =
-    16
+    4
 
 
 viewWidth : number
@@ -81,10 +80,9 @@ model =
     { viewWidth = viewWidth
     , viewHeight = viewHeight
     , pixelSize = pixelSize
-    , numberOfPixels = round (viewWidth / pixelSize * viewHeight / pixelSize)
     , player =
         { velocity = 0.05
-        , position = Position 0 10
+        , position = Position 10 10
         , shotsFired = 0
         , sprite =
             [ { position = Position 0 0
@@ -268,29 +266,17 @@ view : Model -> Html msg
 view model =
     div
         [ style
-            [ ( "backgroundColor", "rgb(0, 0, 0)" )
-            , ( "z-index", "1" )
-            , ( "height", "450px" )
-            , ( "width", "700px" )
-            , ( "left", "381.5px" )
-            , ( "top", "168px" )
+            [ ( "border-radius", "0%" )
+            , ( "box-shadow", drawPlayer model.player )
+            , ( "position", "absolute" )
+            , ( "top", "0" )
+            , ( "left", "0" )
+            , ( "margin", "0" )
+            , ( "padding", "0" )
+            , ( "overflow", "hidden" )
             ]
         ]
-        [ div
-            [ style
-                [ ( "border-radius", "0%" )
-                , ( "box-shadow", drawPlayer model.player )
-                , ( "position", "absolute" )
-                , ( "top", "0" )
-                , ( "left", "0" )
-                , ( "margin", "0" )
-                , ( "padding", "0" )
-                , ( "overflow", "hidden" )
-                ]
-            ]
-            []
-        , div [ style [ ( "position", "fixed" ), ( "bottom", "0" ) ] ] [ text (toString model) ]
-        ]
+        [ div [ style [ ( "position", "fixed" ), ( "bottom", "0" ) ] ] [ text (toString model) ] ]
 
 
 translatePixel : Position -> Pixel -> Pixel
