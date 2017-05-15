@@ -2,17 +2,15 @@ module Game exposing (..)
 
 import Html exposing (Html, text, div, Attribute)
 import Html.Attributes exposing (style)
-import Html.App as Html
 import Keyboard exposing (KeyCode)
 import Random
 import AnimationFrame
 import Time exposing (Time)
 import Key exposing (..)
 import Color exposing (..)
-import Dict exposing (..)
 
 
-main : Program Never
+main : Program Never Model Msg
 main =
     Html.program
         { init = init
@@ -40,16 +38,18 @@ type alias Model =
 
 
 type alias Position =
-    ( Int, Int )
-
-
-type alias Pixel =
-    { position : Position
-    , color : Color
+    { x : Int
+    , y : Int
     }
 
 
-type alias PixelMap =
+type alias Pixel =
+    { color : Color
+    , position : Position
+    }
+
+
+type alias Sprite =
     List Pixel
 
 
@@ -57,23 +57,23 @@ type alias Player =
     { velocity : Float
     , position : Position
     , shotsFired : Int
-    , pixelMap : PixelMap
+    , sprite : Sprite
     }
 
 
 pixelSize : number
 pixelSize =
-    8
+    16
 
 
 viewWidth : number
 viewWidth =
-    1024
+    800
 
 
 viewHeight : number
 viewHeight =
-    768
+    600
 
 
 model : Model
@@ -83,20 +83,20 @@ model =
     , pixelSize = pixelSize
     , numberOfPixels = round (viewWidth / pixelSize * viewHeight / pixelSize)
     , player =
-        { velocity = 1
-        , position = ( 0, 0 )
+        { velocity = 0.05
+        , position = Position 0 0
         , shotsFired = 0
-        , pixelMap =
-            [ { position = ( 0, 0 )
+        , sprite =
+            [ { position = Position 0 0
               , color = rgb 150 150 150
               }
-            , { position = ( 1, 0 )
+            , { position = Position 1 0
               , color = rgb 150 150 150
               }
-            , { position = ( 0, 1 )
+            , { position = Position 0 1
               , color = rgb 150 150 150
               }
-            , { position = ( 1, 1 )
+            , { position = Position 1 1
               , color = rgb 150 150 150
               }
             ]
@@ -165,7 +165,7 @@ update msg model =
             in
                 case action of
                     Just action ->
-                        case List.member action model.actions of
+                        case model.actions |> List.member action of
                             True ->
                                 ( model, Cmd.none )
 
@@ -209,11 +209,16 @@ applyTime deltaTime model =
                     round model.timeElapsedInSeconds
                         |> Random.initialSeed
                         |> Random.step (Random.int 1 100)
-                        |> fst
+                        |> Tuple.first
 
                 _ ->
                     model.randomNumber
     }
+
+
+add : Position -> Position -> Position
+add a b =
+    Position (a.x + b.x) (a.y + b.y)
 
 
 applyAction : Time -> Action -> Player -> Player
@@ -223,10 +228,22 @@ applyAction deltaTime action player =
             { player | shotsFired = player.shotsFired + 1 }
 
         MoveLeft velocity ->
-            { player | position = ( fst player.position - round (player.velocity * Time.inMilliseconds deltaTime), snd player.position ) }
+            { player | position = add (player.position) (Position (-1 * round (player.velocity * Time.inMilliseconds deltaTime)) 0) }
 
         MoveRight velocity ->
-            { player | position = ( fst player.position + round (player.velocity * Time.inMilliseconds deltaTime), snd player.position ) }
+            { player | position = add (player.position) (Position (round (player.velocity * Time.inMilliseconds deltaTime)) 0) }
+
+
+toPosition : List Int -> Int -> List Position
+toPosition ys x =
+    ys |> List.map (\y -> Position x y)
+
+
+listProduct : List Int -> List Int -> List Position
+listProduct xs ys =
+    xs
+        |> List.map (toPosition ys)
+        |> List.concat
 
 
 
@@ -235,83 +252,79 @@ applyAction deltaTime action player =
 
 view : Model -> Html msg
 view model =
-    div [] [ canvas model, text (toString model) ]
+    div []
+        [ background
+        , (drawPlayer model.player)
+          -- , text (toString model)
+          -- , div [] [ text (toString (listProduct x y)) ]
+        ]
 
 
-type alias Canvas =
-    Dict Position Color
-
-
-background : Canvas
+background : Html msg
 background =
     let
         xs =
-            [0..round (viewWidth / pixelSize) - 1]
+            List.range 0 (round (viewWidth / pixelSize) - 1)
 
         ys =
-            [0..round (viewHeight / pixelSize) - 1]
+            List.range 0 (round (viewHeight / pixelSize) - 1)
+
+        color =
+            rgb 0 0 0
     in
         ys
-            |> List.map (singleTupleZip xs)
-            |> List.concat
-            |> singleTupleZipReserve (rgb 150 150 150)
-            |> Dict.fromList
+            |> listProduct xs
+            |> List.map (Pixel color)
+            |> List.map canvasPixel
+            |> div []
 
 
-singleTupleZip : List a -> b -> List ( a, b )
-singleTupleZip a b =
-    a |> List.map (\x -> ( x, b ))
+translatePixel : Position -> Pixel -> Pixel
+translatePixel pos pixel =
+    { pixel | position = add pos pixel.position }
 
 
-singleTupleZipReserve : a -> List b -> List ( b, a )
-singleTupleZipReserve a b =
-    b |> List.map (\x -> ( x, a ))
+translateSprite : Position -> Sprite -> Sprite
+translateSprite pos sprite =
+    sprite |> List.map (translatePixel pos)
 
 
-canvas : Model -> Html msg
-canvas model =
-    let
-        blocks =
-            background
-                |> Dict.toList
-                |> List.map (canvasPixel model)
-    in
-        div [ canvasStyle model ] blocks
+drawPlayer : Player -> Html msg
+drawPlayer player =
+    translateSprite player.position player.sprite
+        |> drawSprite
 
 
-canvasPixel : Model -> ( Position, Color ) -> Html msg
-canvasPixel model ( position, color ) =
-    div [ canvasPixelStyle model position color ] []
+drawSprite : Sprite -> Html msg
+drawSprite sprite =
+    sprite
+        |> List.map canvasPixel
+        |> div []
 
 
-canvasPixelStyle : Model -> Position -> Color -> Attribute msg
-canvasPixelStyle model position color =
+canvasPixel : Pixel -> Html msg
+canvasPixel pixel =
+    div [ canvasPixelStyle pixel ] []
+
+
+canvasPixelStyle : Pixel -> Attribute msg
+canvasPixelStyle pixel =
     let
         { red, green, blue } =
-            Color.toRgb color
+            Color.toRgb pixel.color
 
-        ( xPos, yPos ) =
-            position
+        { x, y } =
+            pixel.position
     in
         style
             [ ( "backgroundColor", "rgb(" ++ toString red ++ "," ++ toString green ++ "," ++ toString blue ++ ")" )
             , ( "position", "absolute" )
-            , ( "height", toString model.pixelSize ++ "px" )
-            , ( "width", toString model.pixelSize ++ "px" )
-            , ( "left", toString (model.pixelSize * xPos) ++ "px" )
-            , ( "bottom", toString (model.pixelSize * yPos) ++ "px" )
+            , ( "height", toString pixelSize ++ "px" )
+            , ( "width", toString pixelSize ++ "px" )
+            , ( "transform", "translate(" ++ toString (pixelSize * x) ++ "px," ++ toString (pixelSize * y) ++ "px)" )
+              -- , ( "left", toString (pixelSize * x) ++ "px" )
+              -- , ( "bottom", toString (pixelSize * y) ++ "px" )
             ]
-
-
-canvasStyle : Model -> Attribute msg
-canvasStyle model =
-    style
-        [ ( "backgroundColor", "cornflowerblue" )
-        , ( "position", "relative" )
-        , ( "height", toString model.viewHeight ++ "px" )
-        , ( "width", toString model.viewWidth ++ "px" )
-        , ( "margin", "auto" )
-        ]
 
 
 
