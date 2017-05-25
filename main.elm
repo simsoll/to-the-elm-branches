@@ -1,4 +1,4 @@
-module Game exposing (..)
+module Main exposing (..)
 
 import Html exposing (Html, text, div, Attribute)
 import Html.Attributes exposing (style)
@@ -8,12 +8,19 @@ import AnimationFrame
 import Time exposing (Time)
 import Key exposing (..)
 import Color exposing (..)
+import Json.Decode exposing (int, string, float, list, Decoder)
+import Json.Decode.Pipeline exposing (decode, required, optional, hardcoded)
+import Http
+import Task
+
+
+-- elm-live Main.elm --open --pushstate --output=elm.js
 
 
 main : Program Never Model Msg
 main =
     Html.program
-        { init = init
+        { init = init "/avatar.json"
         , view = view
         , update = update
         , subscriptions = subscriptions
@@ -57,6 +64,42 @@ type alias Player =
     , position : Position
     , shotsFired : Int
     , sprite : Sprite
+    }
+
+
+updateSprite : Sprite -> Player -> Player
+updateSprite sprite player =
+    { player | sprite = sprite }
+
+
+type alias RawPixel =
+    { x : Int
+    , y : Int
+    , r : Int
+    , g : Int
+    , b : Int
+    }
+
+
+rawPixelDecoder : Decoder RawPixel
+rawPixelDecoder =
+    decode RawPixel
+        |> required "x" int
+        |> required "y" int
+        |> required "r" int
+        |> required "g" int
+        |> required "b" int
+
+
+rawPixelListDecoder : Decoder (List RawPixel)
+rawPixelListDecoder =
+    list rawPixelDecoder
+
+
+toPixel : RawPixel -> Pixel
+toPixel rawPixel =
+    { position = Position rawPixel.x rawPixel.y
+    , color = rgb rawPixel.r rawPixel.g rawPixel.b
     }
 
 
@@ -106,9 +149,9 @@ model =
     }
 
 
-init : ( Model, Cmd Msg )
-init =
-    ( model, Cmd.none )
+init : String -> ( Model, Cmd Msg )
+init url =
+    ( model, loadRawPixels url )
 
 
 
@@ -119,6 +162,7 @@ type Msg
     = TimeUpdate Time
     | KeyDown KeyCode
     | KeyUp KeyCode
+    | LoadData (Result Http.Error (List RawPixel))
 
 
 type alias Velocity =
@@ -131,6 +175,15 @@ type Action
     | MoveRight Velocity
     | MoveDown Velocity
     | MoveUp Velocity
+
+
+loadRawPixels : String -> Cmd Msg
+loadRawPixels url =
+    let
+        request =
+            Http.get url rawPixelListDecoder
+    in
+        Http.send LoadData request
 
 
 toAction : Model -> Int -> Maybe Action
@@ -160,7 +213,6 @@ toAction model keyCode =
 update : Msg -> Model -> ( Model, Cmd Msg )
 update msg model =
     case msg of
-        -- TODO: fix this! apply actions in applyPhysics
         TimeUpdate time ->
             ( model |> applyTime time, Cmd.none )
 
@@ -196,6 +248,19 @@ update msg model =
 
                     Nothing ->
                         ( model, Cmd.none )
+
+        LoadData (Ok data) ->
+            let
+                sprite =
+                    data |> List.map toPixel
+
+                player =
+                    model.player |> updateSprite sprite
+            in
+                ( { model | player = player }, Cmd.none )
+
+        LoadData (Err _) ->
+            ( model, Cmd.none )
 
 
 isActionsDifferent : Action -> Action -> Bool
@@ -276,7 +341,11 @@ view model =
             , ( "overflow", "hidden" )
             ]
         ]
-        [ div [ style [ ( "position", "fixed" ), ( "bottom", "0" ) ] ] [ text (toString model) ] ]
+        []
+
+
+
+-- [ div [ style [ ( "position", "fixed" ), ( "bottom", "0" ) ] ] [ text (toString model) ] ]
 
 
 translatePixel : Position -> Pixel -> Pixel
