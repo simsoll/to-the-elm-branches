@@ -11,7 +11,6 @@ import Color exposing (..)
 import Json.Decode exposing (int, string, float, list, Decoder)
 import Json.Decode.Pipeline exposing (decode, required, optional, hardcoded)
 import Http
-import Task
 
 
 -- elm-live Main.elm --open --pushstate --output=elm.js
@@ -78,6 +77,7 @@ type alias RawPixel =
     , r : Int
     , g : Int
     , b : Int
+    , a : Float
     }
 
 
@@ -89,6 +89,7 @@ rawPixelDecoder =
         |> required "r" int
         |> required "g" int
         |> required "b" int
+        |> required "a" float
 
 
 rawPixelListDecoder : Decoder (List RawPixel)
@@ -99,13 +100,13 @@ rawPixelListDecoder =
 toPixel : RawPixel -> Pixel
 toPixel rawPixel =
     { position = Position rawPixel.x rawPixel.y
-    , color = rgb rawPixel.r rawPixel.g rawPixel.b
+    , color = rgba rawPixel.r rawPixel.g rawPixel.b rawPixel.a
     }
 
 
 pixelSize : number
 pixelSize =
-    4
+    10
 
 
 viewWidth : number
@@ -129,16 +130,16 @@ model =
         , shotsFired = 0
         , sprite =
             [ { position = Position 0 0
-              , color = rgb 150 150 150
+              , color = rgba 150 150 150 0
               }
             , { position = Position 1 0
-              , color = rgb 150 150 150
+              , color = rgba 150 150 150 0
               }
             , { position = Position 0 1
-              , color = rgb 150 150 150
+              , color = rgba 150 150 150 0
               }
             , { position = Position 1 1
-              , color = rgb 150 150 150
+              , color = rgba 150 150 150 0
               }
             ]
         }
@@ -374,16 +375,17 @@ drawSprite sprite =
 pixelStyle : Pixel -> String
 pixelStyle pixel =
     let
-        { red, green, blue } =
+        { red, green, blue, alpha } =
             Color.toRgb pixel.color
 
         { x, y } =
             pixel.position
     in
-        "rgb(" ++ toString red ++ "," ++ toString green ++ "," ++ toString blue ++ ") " ++ toString (pixelSize * x) ++ "px " ++ toString (pixelSize * y) ++ "px 0px " ++ toString (pixelSize) ++ "px"
+        "rgba(" ++ toString red ++ "," ++ toString green ++ "," ++ toString blue ++ "," ++ toString alpha ++ ") " ++ toString (pixelSize * x) ++ "px " ++ toString (pixelSize * y) ++ "px 0px " ++ toString (pixelSize / 2) ++ "px"
 
 
 
+-- "rgba(" ++ toString red ++ "," ++ toString green ++ "," ++ toString blue ++ ") " ++ toString (pixelSize * x) ++ "px " ++ toString (pixelSize * y) ++ "px 0px " ++ toString (pixelSize) ++ "px"
 -- SUBSCRIPTIONS
 
 
