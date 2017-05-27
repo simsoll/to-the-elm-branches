@@ -11,6 +11,7 @@ import Color exposing (..)
 import Json.Decode exposing (int, string, float, list, Decoder)
 import Json.Decode.Pipeline exposing (decode, required, optional, hardcoded)
 import Http
+import Tiled
 
 
 -- elm-live Main.elm --open --pushstate --output=elm.js
@@ -19,7 +20,7 @@ import Http
 main : Program Never Model Msg
 main =
     Html.program
-        { init = init "/avatar.json"
+        { init = init
         , view = view
         , update = update
         , subscriptions = subscriptions
@@ -39,6 +40,7 @@ type alias Model =
     , randomNumber : Int
     , framesPerSecond : Int
     , timeElapsedInSeconds : Float
+    , map : Tiled.Map
     }
 
 
@@ -66,9 +68,16 @@ type alias Player =
     }
 
 
-updateSprite : Sprite -> Player -> Player
-updateSprite sprite player =
-    { player | sprite = sprite }
+type alias Velocity =
+    Float
+
+
+type Action
+    = Shot
+    | MoveLeft Velocity
+    | MoveRight Velocity
+    | MoveDown Velocity
+    | MoveUp Velocity
 
 
 type alias RawPixel =
@@ -130,16 +139,16 @@ model =
         , shotsFired = 0
         , sprite =
             [ { position = Position 0 0
-              , color = rgba 150 150 150 0
+              , color = rgba 150 150 150 1
               }
             , { position = Position 1 0
-              , color = rgba 150 150 150 0
+              , color = rgba 150 150 150 1
               }
             , { position = Position 0 1
-              , color = rgba 150 150 150 0
+              , color = rgba 150 150 150 1
               }
             , { position = Position 1 1
-              , color = rgba 150 150 150 0
+              , color = rgba 150 150 150 1
               }
             ]
         }
@@ -147,12 +156,27 @@ model =
     , randomNumber = 0
     , framesPerSecond = 0
     , timeElapsedInSeconds = 0
+    , map =
+        { height = 0
+        , layers = []
+        , tileHeight = 0
+        , tileSets = []
+        , tileWidth = 0
+        , width = 0
+        }
     }
 
 
-init : String -> ( Model, Cmd Msg )
-init url =
-    ( model, loadRawPixels url )
+init : ( Model, Cmd Msg )
+init =
+    let
+        loadPlayerSpriteCommand =
+            createHttpCommand "/assets/avatar.json" rawPixelListDecoder LoadPlayerSprite
+
+        loadMapCommand =
+            createHttpCommand "/assets/level-one.json" Tiled.mapDecoder LoadMap
+    in
+        ( model, Cmd.batch [ loadPlayerSpriteCommand, loadMapCommand ] )
 
 
 
@@ -163,28 +187,18 @@ type Msg
     = TimeUpdate Time
     | KeyDown KeyCode
     | KeyUp KeyCode
-    | LoadData (Result Http.Error (List RawPixel))
+    | LoadPlayerSprite (Result Http.Error (List RawPixel))
+    | LoadMap (Result Http.Error Tiled.Map)
 
 
-type alias Velocity =
-    Float
+updateSprite : Sprite -> Player -> Player
+updateSprite sprite player =
+    { player | sprite = sprite }
 
 
-type Action
-    = Shot
-    | MoveLeft Velocity
-    | MoveRight Velocity
-    | MoveDown Velocity
-    | MoveUp Velocity
-
-
-loadRawPixels : String -> Cmd Msg
-loadRawPixels url =
-    let
-        request =
-            Http.get url rawPixelListDecoder
-    in
-        Http.send LoadData request
+createHttpCommand : String -> Json.Decode.Decoder a -> (Result Http.Error a -> Msg) -> Cmd Msg
+createHttpCommand url decoder msg =
+    Http.get url decoder |> Http.send msg
 
 
 toAction : Model -> Int -> Maybe Action
@@ -250,7 +264,7 @@ update msg model =
                     Nothing ->
                         ( model, Cmd.none )
 
-        LoadData (Ok data) ->
+        LoadPlayerSprite (Ok data) ->
             let
                 sprite =
                     data |> List.map toPixel
@@ -260,8 +274,18 @@ update msg model =
             in
                 ( { model | player = player }, Cmd.none )
 
-        LoadData (Err _) ->
+        LoadPlayerSprite (Err _) ->
             ( model, Cmd.none )
+
+        LoadMap (Ok map) ->
+            ( { model | map = map }, Cmd.none )
+
+        LoadMap (Err message) ->
+            let
+                _ =
+                    Debug.log "Error: " message
+            in
+                ( model, Cmd.none )
 
 
 isActionsDifferent : Action -> Action -> Bool
@@ -312,37 +336,28 @@ applyAction deltaTime action player =
             { player | position = add (player.position) (Position 0 (round (player.velocity * Time.inMilliseconds deltaTime))) }
 
 
-toPosition : List Int -> Int -> List Position
-toPosition ys x =
-    ys |> List.map (\y -> Position x y)
-
-
-listProduct : List Int -> List Int -> List Position
-listProduct xs ys =
-    xs
-        |> List.map (toPosition ys)
-        |> List.concat
-
-
 
 -- VIEW
 
 
 view : Model -> Html msg
 view model =
-    div
-        [ style
-            [ ( "border-radius", "0%" )
-            , ( "box-shadow", drawPlayer model.player )
-            , ( "position", "absolute" )
-            , ( "top", "0" )
-            , ( "left", "0" )
-            , ( "margin", "0" )
-            , ( "padding", "0" )
-            , ( "overflow", "hidden" )
+    div []
+        [ div
+            [ style
+                [ ( "border-radius", "0%" )
+                , ( "box-shadow", drawPlayer model.player )
+                , ( "position", "absolute" )
+                , ( "top", "0" )
+                , ( "left", "0" )
+                , ( "margin", "0" )
+                , ( "padding", "0" )
+                , ( "overflow", "hidden" )
+                ]
             ]
+            []
+        , text (toString model.map)
         ]
-        []
 
 
 
